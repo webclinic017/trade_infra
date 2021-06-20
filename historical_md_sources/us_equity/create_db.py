@@ -1,5 +1,11 @@
+from pathlib import Path
+infra_path = Path(__file__).resolve().parents[2]  #this will return infra folder
+
 import sys
-sys.path.append("/Users/led/Desktop/algo_trading_research/aggregation")
+if "infra" in str(infra_path):
+    sys.path.append(str(infra_path))
+else:
+    raise Exception("Infra parent folder is not able to append, check parent directory hierarchy level")
 
 import psycopg2, config
 
@@ -38,7 +44,7 @@ cursor.execute("""
         low FLOAT NOT NULL, 
         close FLOAT NOT NULL, 
         volume INTEGER NOT NULL,
-        FOREIGN KEY (stock_id) REFERENCES stock_symbols (id)
+        FOREIGN KEY (stock_id) REFERENCES us_equity_symbols (id)
     )
 """)
 
@@ -53,25 +59,25 @@ cursor.execute("""
         low FLOAT NOT NULL, 
         close FLOAT NOT NULL, 
         volume INTEGER NOT NULL,
-        FOREIGN KEY (stock_id) REFERENCES stock_symbols (id)
+        FOREIGN KEY (stock_id) REFERENCES us_equity_symbols (id)
     )
 """)
 
 
 # minute, open, high, low, close, volume, notes
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS md_stream (
-        row_id SERIAL PRIMARY KEY, 
-        symbol TEXT NOT NULL,
-        datetime TIMESTAMP NOT NULL,
-        open FLOAT NOT NULL, 
-        high FLOAT NOT NULL, 
-        low FLOAT NOT NULL, 
-        close FLOAT NOT NULL, 
-        volume INTEGER NOT NULL,
-        notes TEXT
-    )
-""")
+# cursor.execute("""
+#     CREATE TABLE IF NOT EXISTS md_stream (
+#         row_id SERIAL PRIMARY KEY, 
+#         symbol TEXT NOT NULL,
+#         datetime TIMESTAMP NOT NULL,
+#         open FLOAT NOT NULL, 
+#         high FLOAT NOT NULL, 
+#         low FLOAT NOT NULL, 
+#         close FLOAT NOT NULL, 
+#         volume INTEGER NOT NULL,
+#         notes TEXT
+#     )
+# """)
 
 connection.commit()
 cursor.close()

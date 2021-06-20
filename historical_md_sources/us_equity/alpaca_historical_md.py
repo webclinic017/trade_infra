@@ -10,6 +10,9 @@ else:
 import alpaca_trade_api as tradeapi
 import psycopg2, config
 from datetime import date, datetime, timedelta
+import pandas as pd
+
+import dateutil.parser as parser
 
 # {   'class': 'us_equity',
 #     'easy_to_borrow': False,
@@ -39,7 +42,6 @@ api = tradeapi.REST(
     secret_key= config.ALPACA_ALPACA_SECRET_KEY
 )
 
-
 def download_symbols():
     cursor.execute("""
         SELECT symbol, name FROM us_equity_symbols
@@ -68,6 +70,8 @@ def download_symbols():
     connection.commit()
     print ('populate_db completed')
 
+# download_symbols()
+
 
 def existing_db_daily_data():
     existing_db_daily_data = []
@@ -78,18 +82,25 @@ def existing_db_daily_data():
     current_daily_price_db_data = cursor.fetchall()
 
     for current_daily in current_daily_price_db_data:
-        db_ticker_index = current_daily[0]
-        db_date = current_daily[0]
+        db_ticker_index = current_daily[1]
 
-        existing_data = str(db_ticker_index) + str(db_date)
+        db_date = current_daily[2]
+        my_time = datetime.min.time()
+        my_datetime = datetime.combine(db_date, my_time)
+        my_datetime = my_datetime.isoformat()
+
+        existing_data = str(db_ticker_index) + str(my_datetime)
         existing_db_daily_data.append(existing_data)
 
     return existing_db_daily_data
 
+existing_db_daily_data()
+
+
 def populate_daily_data():
+    NY = 'America/New_York'
     symbols = []
     stock_ids = {}
-
 
     cursor.execute("""
         SELECT * FROM us_equity_symbols; 
@@ -101,25 +112,28 @@ def populate_daily_data():
         symbols.append(symbol)
         stock_ids[symbol] = stock[0]
 
-    for symbol in symbols[:3]:
-        start_date = datetime(2018, 1, 1).date()
+    for symbol in symbols:
+        start_date = datetime(2020, 1, 1).date()
         end_date_range = date.today()
 
         while start_date < end_date_range:
             end_date = start_date + timedelta(days=4)
 
             print(f"== Fetching day bars for {symbol} {start_date} - {end_date} ==")
-            minutes = api.polygon.historic_agg_v2(symbol, 1, 'day', _from=start_date, to=end_date).df  #polygon no longer avaible.
+            minutes = api.get_barset(symbol,'day', start=pd.Timestamp(start_date, tz=NY).isoformat(), end=pd.Timestamp(end_date, tz=NY).isoformat()).df  #some symbol may have no data for some period
             minutes = minutes.resample('1d').ffill()
+            # print (minutes)
 
             for index, row in minutes.iterrows():
-                date = index.tz_localize(None).isoformat()
 
-                if str(stock_ids[symbol]) + str(date) not in existing_db_daily_data():  #check if already in the database. base on stock_id+date index key.
+                download_date = index.tz_localize(None).isoformat()
+                if str(stock_ids[symbol]) + str(download_date) not in existing_db_daily_data():  #check if already in the database. base on stock_id+date index key.
+                    print (f"Added new bar for {symbol}  {download_date}")
                     cursor.execute("""
                         INSERT INTO us_equity_daily_price (stock_id, date, open, high, low, close, volume)
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """, (stock_ids[symbol], date, row['open'], row['high'], row['low'], row['close'], row['volume']))
+                    """, (stock_ids[symbol], download_date, row[0], row[1], row[2], row[3], row[4]))
+                    # """, (stock_ids[symbol], download_date, row['open'], row['high'], row['low'], row['close'], row['volume']))
                 else:
                     pass
 
@@ -127,7 +141,7 @@ def populate_daily_data():
             
     connection.commit()
 
-# print (populate_daily_data())
+populate_daily_data()
 
 def populate_minute_data():
     symbols = []
